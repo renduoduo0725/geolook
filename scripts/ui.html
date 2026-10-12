@@ -2887,7 +2887,7 @@ function vSamples(){
         <td style="font-size:12.5px">${esc(r.platform_name||r.platform)}</td>
         <td style="font-size:11px;color:var(--t600)" title="${esc((r.evidence_level||'')+(r.session_label?' · '+r.session_label:''))}">${({api:'API',manual:'手工',extension:'插件'})[r.sample_mode]||esc(r.sample_mode||'')}${r.session_mode&&r.session_mode!=='incognito'?`<div style="font-size:9.5px;color:${r.session_mode==='personal'?'var(--accent)':'var(--t700)'}">${r.session_mode==='personal'?'个人号':'专用号'}</div>`:''}</td>
         <td style="font-size:12.5px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.question||'')}">${esc(r.question||'')}</td>
-        <td><span class="tag ${r.brand_mentioned?'tag-accent':'tag-dim'}">${r.brand_mentioned?'是':'否'}</span></td>
+        <td><span class="tag ${r.brand_mentioned?'tag-accent':'tag-dim'}">${r.brand_mentioned?'是':'否'}</span>${r.answer_chars?'':`<div style="font-size:10px;color:var(--t600);margin-top:3px">无回答</div>`}</td>
         <td style="font-size:12.5px;color:var(--t400)">${r.brand_rank||'—'}</td>
         <td style="font-size:11.5px;color:var(--t500);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc((r.competitors||[]).join('、'))}">${esc((r.competitors||[]).join('、'))||'—'}</td>
         <td style="font-size:12px;color:var(--t500)">${r.citations||0}${r.own_domain_cited?' <span style="color:var(--a300)" title="引用了官网">·官</span>':''}</td>
@@ -2899,10 +2899,18 @@ function vSamples(){
     </tbody></table></div>
   </div>`;
 }
+function sampleErrorText(error){
+  const text=String(error||'');
+  if(/SetLimitExceeded|usage limit|Safe Experience/i.test(text)) return '这条没有回答正文。豆包账号额度用完了，这次调用没有返回内容。';
+  if(/503|too busy|Service is too busy/i.test(text)) return '这条没有回答正文。引擎当时繁忙，没有返回内容。';
+  if(/KeyError/.test(text)) return '这条没有回答正文。引擎返回的格式无法读取。';
+  return text?('这条没有回答正文。\n\n'+text.slice(0,280)):'（空）';
+}
 async function sampleModal(key){
   const r=await api(`/api/sample/${SLUG}?key=${encodeURIComponent(key)}`);
-  if(!r||r.error){toast('读取失败','err');return}
+  if(!r||(!r.question&&!r.date)){toast((r&&r.error)||'读取失败','err');return}
   const a=r.analysis||{},cites=r.citations||[];
+  const answerText=r.answer||sampleErrorText(r.error);
   modal(`<h4 style="font-size:16px">${esc(r.question||'')}</h4>
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
       <span class="tag tag-outline">${esc(r.platform_name||r.platform)}</span>
@@ -2912,7 +2920,7 @@ async function sampleModal(key){
       ${r.manual_override?'<span class="tag tag-accent">已人工核对</span>':''}
       <span style="font-size:11.5px;color:var(--t600)">${esc(r.terminal||'')} · ${esc(r.sample_mode||'')} · ${(r.answer||'').length} 字</span></div>
     <div style="font-size:12px;color:var(--t600);margin:12px 0 3px">答案原文</div>
-    <div style="max-height:210px;overflow:auto;background:var(--deep);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.65;white-space:pre-wrap;color:var(--t400)">${esc(r.answer||'')}</div>
+    <div style="max-height:210px;overflow:auto;background:var(--deep);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.65;white-space:pre-wrap;color:var(--t400)">${esc(answerText)}</div>
     ${cites.length?(()=>{
       // 源站构成：这条答案的引用都来自哪些域名、各占多少——占比高的就是该题的主导信源
       const dom={};cites.forEach(c=>{try{const h=new URL(c.url).hostname.replace(/^www\./,'');dom[h]=(dom[h]||0)+1}catch(e){}});
